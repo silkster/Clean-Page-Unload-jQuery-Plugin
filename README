@@ -1,0 +1,18 @@
+# Clean Page Unload jQuery Plugin
+
+ Author: Dan Silk
+Created: 8/12/2011
+    Url: https://github.com/silkster/Clean-Page-Unload-jQuery-Plugin
+
+## Notes
+
+* Created to provide the means to register multiple methods for the 
+  window.onbeforeunload event and to call these methods before leaving a web page.
+* Works in IE, Firfox and Chrome.
+* Not tested in any other browsers.
+
+This plugin is good for web apps that are AJAX-heavy.  The need for it 
+arose when I needed to find a way to prevent AJAX errors from firing when 
+I'm leaving a page.  First we had a method for tracking pending AJAx 
+requests so I wrote a method to abort these requests, but I needed it to 
+fire onbeforeunload which was already set to check for dirty forms. 
