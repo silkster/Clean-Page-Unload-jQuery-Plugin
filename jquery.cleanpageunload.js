@@ -1,9 +1,9 @@
 /*!
 * Clean Page Unload jQuery Plugin v1 
-* https://github.com/silkster/BeforeUnload-jQuery-Plugin
+* https://github.com/silkster/Clean-Page-Unload-jQuery-Plugin
 *
 * Dual licensed under the MIT or GPL Version 2 licenses.
-* https://github.com/silkster/BeforeUnload-jQuery-Plugin/blob/master/license
+* https://github.com/silkster/Clean-Page-jQuery-Plugin/blob/master/license
 *
 *  Author: Dan Silk, http://plugins.jquery.com/users/silkster
 *    Date: Thu Aug 12 16:15:00 2011 -0400
@@ -18,86 +18,81 @@ $.CleanPageUnload = (function ($) {
     var cleaner = {};
     var settings = {
         debug: false,
-        beforeUnloadMethods: [],   // methods that might need to prevent unloading the page
-        unloadMethods: []          // methods that need to perform general clean-up task on unload
+        beforeUnloadMethods: []   // methods that might need to prevent unloading the page
     };
 
     cleaner.isAjaxClick = false;
 
-    var callMethodsInArray = function (methods) {
-        for (var x = 0, len = methods.length; x < len; x++) {
-            methods[x]();
+    var callMethods = function () {
+        var messages = [];
+        for (var x = 0, len = settings.beforeUnloadMethods.length; x < len; x++) {
+            var msg = settings.beforeUnloadMethods[x]() || '';
+            if (msg.length > 0) {
+                messages.push(msg);
+            }
         }
+        return messages;
     };
 
-    // this is the method that will run all methods in beforeUnloadMethods:
+    // this is the method that will run all methods in beforeUnloadMethods on beforeunload:
     var callBeforeUnloadMethods = function () {
         if (cleaner.isAjaxClick) {
             cleaner.isAjaxClick = false;
         } else {
-            callMethodsInArray(settings.unloadMethods);
+            var messages = callMethods() || '';
+            if (messages.length > 0) {
+                return messages.join('\n');
+            }
         }
-    };
+    }; // nothing to return if no messages
 
-    var registerMethod = function (methodList, fn) {
+    cleaner.registerMethod = function (fn) {
         if (typeof fn == 'function') {
-            if (!methodList.contains(function (item) {
+            if (!settings.beforeUnloadMethods.contains(function (item) {
                 return item == fn;
             })) {
-                methodList.push(fn);
+                settings.beforeUnloadMethods.push(fn);
             }
         }
     };
-
-    cleaner.registerUnloadMethod = function (fn) {
-        registerMethod(settings.unloadMethods, fn);
-    };
-
-    cleaner.registerBeforeUnloadMethod = function (fn) {
-        registerMethod(settings.beforeUnloadMethods, fn);
-    };
-
-    var registercleanpageunload = function () {
-        window.cleanpageunload = callBeforeUnloadMethods;
+    
+    var registerOnBeforeUnload = function () {
+        window.onbeforeunload = callBeforeUnloadMethods;
     };
 
     // attach all methods to window.cleanpageunload 
-    cleaner.AttachTocleanpageunload = function () {
-        var unloadMethod = window.cleanpageunload;
+    cleaner.AttachToBeforeUnload = function () {
+        var unloadMethod = window.onbeforeunload;
         var isWindowEventSet = typeof unloadMethod != 'undefined';
-        if (isWindowEventSet && unloadMethod !== callBeforeUnloadMethods) cleaner.registerUnloadMethod(settings.beforeUnloadMethods, unloadMethod);
-        registercleanpageunload();
+        if (isWindowEventSet && unloadMethod !== callBeforeUnloadMethods) cleaner.registerMethod(unloadMethod);
+        registerOnBeforeUnload();
     };
 
     // using $(document).bind('ready', fn) instead of $(document).ready() runs the ensures that these fns run after all other ready methods:
     $(document)
         .bind('ready', function () {
-            cleaner.AttachTocleanpageunload();
+            cleaner.AttachToBeforeUnload();
 
-            // register unload methods with jQuery.unload()
-            for (var x = 0; x < settings.unloadMethods.length; x++) {
-                $(document).unload(settings.unloadMethods[x]);
-            }
-
-            $(document).delegate('a', 'mousedown', function () {
-                var a = $(this);
-                var href = a.attr('href');
-                var onclick = a.attr('onclick');
-                var events = a.data('events');
-                if (events && events['click'] || (href && (href.indexOf('javascript') >= 0 || onclick))) {
-                    if ($.browser.msie) {
-                        $(this).trigger('ajaxClick');
+            $(document)
+                .delegate('a', 'mousedown', function () {
+                    var a = $(this);
+                    var href = a.attr('href');
+                    var onclick = a.attr('onclick');
+                    var events = a.data('events');
+                    if (events && events['click'] || (href && (href.indexOf('javascript') >= 0 || onclick))) {
+                        if ($.browser.msie) {
+                            $(this).trigger('ajaxClick');
+                        } 
+                    } else {
+                        callMethods();
                     }
-                } else {
-                    callMethodsInArray(settings.unloadMethods);
-                }
-            });
-            $(document).delegate('a[onclick]', 'keydown', function (e) {
-                $(this).mousedown(e);
-            });
-        })
-        .bind('ajaxClick', function () {
-            cleaner.isAjaxClick = true;
+                });
+                $(document).delegate('a[onclick]', 'keydown', function (e) {
+                    $(this).mousedown(e);
+                })
+                .bind('ajaxClick', function () {
+                    cleaner.isAjaxClick = true;
+                });
         });
 
     cleaner.debug = function () {
@@ -107,7 +102,7 @@ $.CleanPageUnload = (function ($) {
     document.CleanPageUnload = function (options) {
         if (typeof options == 'function') {
             // if options is a function, then register it with $.beforeUnload
-            cleaner.registerUnloadMethod('unloadEvents', options);
+            cleaner.registerMethod('beforeUnloadMethods', options);
         } else if (typeof options == 'string') {
             // if options is a string, then see if it is a method of $.beforeUnload and run it
             if (cleaner[options]) {
@@ -122,21 +117,15 @@ $.CleanPageUnload = (function ($) {
         } else if (typeof options == 'object') {
             // if options is an object, see if any of its properties are functions and register them with $.beforeUnload, 
             settings = $.extend(true, settings, options);
-            for (var x = 0, fn, len = settings.unloadMethods.length; x < len; x++) {
-                fn = settings.unloadMethods[x];
-                if (typeof fn == 'function') {
-                    cleaner.registerUnloadMethod(settings.unloadMethods, fn);
-                }
-            }
-            len = settings.beforeUnloadMethods.length;
+            var fn, len = settings.beforeUnloadMethods.length;
             for (x = 0; x < len; x++) {
                 fn = settings.beforeUnloadMethods[x];
                 if (typeof fn == 'function') {
-                    cleaner.registerUnloadMethod(settings.beforeUnloadMethods, fn);
+                    cleaner.registerMethod(fn);
                 }
             }
-            registercleanpageunload();
+            registerOnBeforeUnload();
         }
-    };
+    }; // only returns value when running a method when (tyepof options == 'string')
 
 })(jQuery);
